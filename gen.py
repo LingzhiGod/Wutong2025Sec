@@ -18,12 +18,12 @@ def generate_debug_data(
         records.append(("acct_type1", 2, "/products/test", base_time + timedelta(seconds=i*20), "Normal access"))
 
     # --- Type2 ---
-    for i in range(n_type2):
-        records.append(("acct_type2", 2, "/products/test", base_time + timedelta(minutes=i*10), "Normal access"))
+    for j in range(n_type2):
+        records.append(("acct_type2", 2, "/products/test", base_time + timedelta(minutes=j*10), "Normal access"))
 
     # --- Type3 ---
-    for i in range(n_type3):
-        records.append(("acct_type3", 2, "/marketing/page", base_time + timedelta(seconds=i*30), "Normal access"))
+    for k in range(n_type3):
+        records.append(("acct_type3", 2, "/marketing/page", base_time + timedelta(seconds=k*30), "Normal access"))
 
     # --- Type4 ---
     sensitive_examples = [
@@ -32,13 +32,13 @@ def generate_debug_data(
         "Secure data operation - user liu****88@test.com",
         "Encrypted data transfer - 150****9371"
     ]
-    for i in range(n_type4):
-        records.append(("acct_type4", 2, "/confidential/hr", base_time + timedelta(seconds=i*40), random.choice(sensitive_examples)))
+    for m in range(n_type4):
+        records.append(("acct_type4", 2, "/confidential/hr", base_time + timedelta(seconds=m*40), random.choice(sensitive_examples)))
 
     # --- Type5 ---
     night_time = datetime(2025, 9, 14, 22, 0, 0)
-    for i in range(n_type5):
-        records.append(("acct_type5", 1, "/confidential/data", night_time + timedelta(minutes=i*3), "Privileged access"))
+    for n in range(n_type5):
+        records.append(("acct_type5", 1, "/products/data", night_time + timedelta(minutes=n*3), "Privileged access"))
 
     # --- 垃圾 / 误导数据 ---
     noise_urls = ["/random/page", "/ads/banner", "/confidential/fake", "/products/demo"]
@@ -49,9 +49,9 @@ def generate_debug_data(
         "Error code: 500",      # 系统错误信息
         "Visit homepage"        # 非异常行为
     ]
-    for i in range(n_noise):
+    for p in range(n_noise):
         records.append((
-            f"acct_noise{i%5}",
+            f"acct_noise{p%5}",
             random.choice([1,2]),
             random.choice(noise_urls),
             base_time + timedelta(minutes=random.randint(0, 600)),
@@ -65,6 +65,6 @@ def generate_debug_data(
     return df
 
 # 生成示例
-debug_df = generate_debug_data(n_type1=12, n_type2=90, n_type3=10, n_type4=6, n_type5=15, n_noise=100)
+debug_df = generate_debug_data()
 debug_df.to_csv("debug_data.csv", index=False, encoding="utf-8-sig")
 

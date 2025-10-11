@@ -42,7 +42,7 @@ WORK_START = 8
 WORK_END = 19
 
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 
 SENSITIVE_PATTERNS = [
@@ -64,8 +64,8 @@ def is_sensitive_content(text):
 
 
 def fmt_time(tt: datetime):
-    dt = pd.to_datetime(tt)
-    return f"{dt.year:02d}/{dt.month:02d}/{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
+    dt = pd.to_datetime(tt).tz_localize(None)  # 去掉时区，保证格式
+    return f"{dt.year:04d}/{dt.month:02d}/{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
 
 
 def singleGroupDetect(group):
@@ -98,26 +98,36 @@ def singleGroupDetect(group):
         # Type1 5min 8+
         j = np.searchsorted(ts, t + 300, side="right")
         if j - i > THRESH_5MIN:
-            abnormal_idx[1].update(range(i, j))
+            abnormal_idx[1].update(range(i + THRESH_5MIN, j))
 
-        # Type2 24h 80+
+        # Type2: 24h >=80
         j = np.searchsorted(ts, t + 86400, side="right")
         if j - i >= THRESH_24H:
-            abnormal_idx[2].update(range(i, j))
+            abnormal_idx[2].update(range(i + THRESH_24H, j))
 
-        # Type3：5min non sensitive page 8+ 次
+        # Type3: 5min non sensitive 8+
         j = np.searchsorted(ts, t + 300, side="right")
         if np.sum(is_non_sensitive[i:j]) > THRESH_5MIN_NONSENS:
-            abnormal_idx[3].update(k for k in range(i, j) if is_non_sensitive[k])
+            count = 0
+            for k in range(i, j):
+                if is_non_sensitive[k]:
+                    count += 1
+                    if count > THRESH_5MIN_NONSENS:
+                        abnormal_idx[3].add(k)
 
         # Type5：priv,non work, sensitive page 1h 10+
         if priv[i] == 1:
-            hour = datetime.fromtimestamp(int(ts[i])).hour
+            hour = datetime.fromtimestamp(int(ts[i]), tz=timezone.utc).hour
             if hour < WORK_START or hour >= WORK_END:
                 j = np.searchsorted(ts, t + 3600, side="right")
                 cnt = np.sum(is_sensitive_page[i:j])
                 if cnt >= THRESH_1H_PRIV:
-                    abnormal_idx[5].update(k for k in range(i, j) if is_sensitive_page[k])
+                    count = 0
+                    for k in range(i, j):
+                        if is_sensitive_page[k]:
+                            count += 1
+                            if count > THRESH_1H_PRIV:
+                                abnormal_idx[5].add(k)
 
     records = []
     for tp, idxs in abnormal_idx.items():
@@ -157,8 +167,7 @@ def process_competition_data(input_file_path, output_file_path):
     # Write your code in the area below.The final output result must be assigned to the variable 'result_df'
     #################################################################################
     result_df = entry(df)
-
-    #debug
+    # debug
     account_stats = result_df.groupby(["login_account", "anomaly_type"]).size().unstack(fill_value=0)
     account_stats.to_csv("account_trigger_stats.csv", encoding="utf-8-sig")
 
@@ -176,8 +185,6 @@ def process_competition_data(input_file_path, output_file_path):
     detections["hour"] = pd.to_datetime(detections["operation_time"], format="%Y/%m/%d %H:%M:%S").dt.hour
     time_distribution = detections.groupby(["anomaly_type", "hour"]).size().unstack(fill_value=0)
     time_distribution.to_csv("time_distribution.csv", encoding="utf-8-sig")
-
-
     #################################################################################
 
     output_data(result_df, output_file_path)
@@ -189,6 +196,6 @@ def process_competition_data(input_file_path, output_file_path):
 
 
 if __name__ == "__main__":
-    input_csv_path = "debug_data.csv"
+    input_csv_path = "user_behavior_data.csv"
     output_csv_path = "test.csv"
     data = process_competition_data(input_csv_path, output_csv_path)
