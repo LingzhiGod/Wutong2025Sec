@@ -1,9 +1,5 @@
-import time
-import timeit
-
 import pandas as pd
 import os
-import sys
 
 # This function is not allowed to be modified
 def read_data(input_file_path):
@@ -15,7 +11,6 @@ def read_data(input_file_path):
     df = pd.read_csv(input_file_path)
     return df
 # This function is not allowed to be modified
-
 def output_data(result_df, output_file_path):
     anomaly_fields = ['login_account', 'operation_time', 'anomaly_type']
     missing_anomaly_fields = [field for field in anomaly_fields if field not in result_df.columns]
@@ -30,9 +25,8 @@ def output_data(result_df, output_file_path):
     output_df = result_df[anomaly_fields]
     output_df.to_csv(output_file_path, index=False)
     return True
-#####################################################################
+########################################################
 import numpy as np
-from datetime import datetime, timezone
 import re
 
 THRESH_5MIN = 8
@@ -58,6 +52,12 @@ def is_sensitive_content(text):
             return True
     return False
 
+#解析时间信息
+def resolve_timedata(df):
+    parsed_time = pd.to_datetime(df["operation_time"], errors="coerce", utc=True)
+    df["operation_ts"] = parsed_time.astype("int64") // 1_000_000_000
+    df["operation_hour"] = parsed_time.dt.hour
+
 def detect_group(group):
     acct = group.iloc[0]['login_account']
 
@@ -74,10 +74,10 @@ def detect_group(group):
 
     abnormal_idx = {1: set(), 2: set(), 3: set(), 4: set(), 5: set()}
 
-    # #Type4:敏感内容
-    # for i, c in enumerate(content):
-    #     if is_sensitive_content(c):
-    #         abnormal_idx[4].add(i)
+    #Type4:敏感内容
+    for i, c in enumerate(content):
+        if is_sensitive_content(c):
+            abnormal_idx[4].add(i)
 
     for i in range(n):
         t = ts[i]
@@ -86,21 +86,23 @@ def detect_group(group):
         j = np.searchsorted(ts, t + 300, side="right")
 
         if j - i > THRESH_5MIN:
-            #abnormal_idx[1].update(range(i, j))
-            non_sens_idx = [k for k in range(i, j) if is_non_sensitive[k]]
-            if len(non_sens_idx) > THRESH_5MIN_NONSENS:
-                abnormal_idx[3].update(non_sens_idx)
+            abnormal_idx[1].update(range(i, j))
 
-        # #Type2
-        # j = np.searchsorted(ts, t + 86400, side="right")
-        # if j - i >= THRESH_24H:
-        #     abnormal_idx[2].update(range(i, j))
-        #
-        # if priv[i] == 1 and (hours[i] < WORK_START or hours[i] >= WORK_END):
-        #     j = np.searchsorted(ts, t + 3600, side="right")
-        #     sens_idx = [k for k in range(i, j) if is_sensitive_page[k]]
-        #     if len(sens_idx) >= THRESH_1H_PRIV:
-        #         abnormal_idx[5].update(sens_idx)
+        # non_sens_idx = [k for k in range(i, j) if is_non_sensitive[k]]
+        non_sens_urls = [urls[k] for k in range(i, j) if is_non_sensitive[k]]
+        if len(set(non_sens_urls)) > THRESH_5MIN_NONSENS:
+            abnormal_idx[3].update(k for k in range(i, j) if is_non_sensitive[k])
+
+        #Type2
+        j = np.searchsorted(ts, t + 86400, side="right")
+        if j - i >= THRESH_24H:
+            abnormal_idx[2].update(range(i, j))
+
+        if priv[i] == 1 and (hours[i] < WORK_START or hours[i] >= WORK_END):
+            j = np.searchsorted(ts, t + 3600, side="right")
+            sens_idx = [k for k in range(i, j) if is_sensitive_page[k]]
+            if len(sens_idx) >= THRESH_1H_PRIV:
+                abnormal_idx[5].update(sens_idx)
 
     records = []
     for tp, idxs in abnormal_idx.items():
@@ -108,12 +110,6 @@ def detect_group(group):
             records.append((acct, orig_times[k], tp))
 
     return records
-
-#解析时间信息
-def resolve_timedata(df):
-    parsed_time = pd.to_datetime(df["operation_time"], errors="coerce", utc=True)
-    df["operation_ts"] = parsed_time.astype("int64") // 1_000_000_000
-    df["operation_hour"] = parsed_time.dt.hour
 
 def data_process(df):
     resolve_timedata(df)
@@ -132,18 +128,17 @@ def data_process(df):
     out = out.drop_duplicates().sort_values(["login_account", "operation_time", "anomaly_type"])
     print("Detected " + str(len(out)) + " warning!")
     return out
-
-
+import time
 def process_competition_data(input_file_path, output_file_path):
-    # try:
+    try:
         df = read_data(input_file_path)
 
 #Write your code in the area below.The final output result must be assigned to the variable 'result_df'
 #################################################################################
-        # execution_time = timeit.timeit(lambda: data_process(df), number=10) / 10
-        # print("Execution time: " + str(execution_time))
-
-        result_df = data_process(df)  # y = f(x)
+        start_time = time.time()
+        result_df = data_process(df)
+        end_time = time.time()
+        print("Cost" + str(end_time - start_time) + "s")
         global_stat = result_df["anomaly_type"].value_counts().sort_index()
         print(global_stat)
 #################################################################################
@@ -151,8 +146,8 @@ def process_competition_data(input_file_path, output_file_path):
         output_data(result_df, output_file_path)
         return result_df
 
-    # except Exception as e:
-    #     return f"Error during processing: {str(e)}"
+    except Exception as e:
+        return f"Error during processing: {str(e)}"
 
 if __name__ == "__main__":
     input_csv_path = "user_behavior_data.csv"
