@@ -1,3 +1,5 @@
+import random
+
 import pandas as pd
 import os
 
@@ -74,7 +76,7 @@ def detect_group(group):
 
     abnormal_idx = {1: set(), 2: set(), 3: set(), 4: set(), 5: set()}
 
-    #Type4:敏感内容
+    # Type4:敏感内容
     for i, c in enumerate(content):
         if is_sensitive_content(c):
             abnormal_idx[4].add(i)
@@ -88,9 +90,8 @@ def detect_group(group):
         if j - i > THRESH_5MIN:
             abnormal_idx[1].update(range(i, j))
 
-        # non_sens_idx = [k for k in range(i, j) if is_non_sensitive[k]]
-        non_sens_urls = [urls[k] for k in range(i, j) if is_non_sensitive[k]]
-        if len(set(non_sens_urls)) > THRESH_5MIN_NONSENS:
+        non_sens_idx = [k for k in range(i, j) if is_non_sensitive[k]]
+        if len(set(non_sens_idx)) > THRESH_5MIN_NONSENS:
             abnormal_idx[3].update(k for k in range(i, j) if is_non_sensitive[k])
 
         #Type2
